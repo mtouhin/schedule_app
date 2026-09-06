@@ -1,6 +1,7 @@
 from pydantic import BaseModel, field_validator
 from typing import Optional
 from datetime import datetime, time
+from uuid import UUID
 
 class ShopCreate(BaseModel):
     name: str
@@ -185,3 +186,10 @@ class CustomerCreate(BaseModel):
             return None
 
         return value
+    
+class AppointmentCreate(BaseModel):
+    customer_id: UUID
+    service_id: UUID
+    barber_id: Optional[UUID] = None
+    start_time: datetime
+    notes: Optional[str] = None

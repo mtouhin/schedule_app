@@ -6,7 +6,8 @@ from app.schemas import (ShopCreate,
                          ServiceCreate, 
                          BusinessHoursCreate, 
                          BarberHoursCreate, 
-                         CustomerCreate)
+                         CustomerCreate,
+                         AppointmentCreate)
 
 from app.shop import create_shop, get_shop
 from app.barber import create_barber, get_barbers
@@ -14,6 +15,8 @@ from app.service import create_service, get_services
 from app.business_hours import set_business_hours, get_business_hours
 from app.barber_hours import set_barber_hours, get_barber_hours
 from app.customer import get_customer_by_phone, create_customer
+from app.appointment import create_appointment
+
 app = FastAPI(
     title="Barbershop API",
     version="1.0.0"
@@ -93,7 +96,6 @@ def set_business_hours_endpoint(
         "close_time": result[4],
         "is_closed": result[5]
     }
-
 
 @app.get("/shops/{shop_id}/business-hours")
 def get_business_hours_endpoint(shop_id: UUID):
@@ -208,7 +210,6 @@ def create_service_endpoint(
         "created_at": service[7]
     }
 
-
 @app.get("/shops/{shop_id}/services")
 def get_services_endpoint(shop_id: UUID):
     services = get_services(shop_id)
@@ -243,7 +244,6 @@ def create_customer_endpoint(
         "created_at": result[5]
     }
 
-
 @app.get("/shops/{shop_id}/customers/phone/{phone}")
 def get_customer_by_phone_endpoint(
     shop_id: UUID,
@@ -266,3 +266,33 @@ def get_customer_by_phone_endpoint(
         "created_at": customer[5],
         "updated_at": customer[6]
     }
+
+@app.post("/shops/{shop_id}/appointments")
+def create_appointment_endpoint(
+    shop_id: UUID,
+    appointment: AppointmentCreate
+):
+    try:
+        result = create_appointment(
+            shop_id,
+            appointment
+        )
+
+        return {
+            "id": result[0],
+            "shop_id": result[1],
+            "customer_id": result[2],
+            "barber_id": result[3],
+            "service_id": result[4],
+            "start_time": result[5],
+            "end_time": result[6],
+            "status": result[7],
+            "notes": result[8],
+            "created_at": result[9]
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
