@@ -1,13 +1,19 @@
 from fastapi import FastAPI, HTTPException
 from uuid import UUID
 from app.db_init import initialize_database
-from app.schemas import ShopCreate, BarberCreate, ServiceCreate, BusinessHoursCreate, BarberHoursCreate
+from app.schemas import (ShopCreate, 
+                         BarberCreate, 
+                         ServiceCreate, 
+                         BusinessHoursCreate, 
+                         BarberHoursCreate, 
+                         CustomerCreate)
+
 from app.shop import create_shop, get_shop
 from app.barber import create_barber, get_barbers
 from app.service import create_service, get_services
 from app.business_hours import set_business_hours, get_business_hours
 from app.barber_hours import set_barber_hours, get_barber_hours
-
+from app.customer import get_customer_by_phone, create_customer
 app = FastAPI(
     title="Barbershop API",
     version="1.0.0"
@@ -220,3 +226,43 @@ def get_services_endpoint(shop_id: UUID):
         }
         for service in services
     ]
+
+@app.post("/shops/{shop_id}/customers")
+def create_customer_endpoint(
+    shop_id: UUID,
+    customer: CustomerCreate
+):
+    result = create_customer(shop_id, customer)
+
+    return {
+        "id": result[0],
+        "shop_id": result[1],
+        "name": result[2],
+        "phone": result[3],
+        "email": result[4],
+        "created_at": result[5]
+    }
+
+
+@app.get("/shops/{shop_id}/customers/phone/{phone}")
+def get_customer_by_phone_endpoint(
+    shop_id: UUID,
+    phone: str
+):
+    customer = get_customer_by_phone(shop_id, phone)
+
+    if not customer:
+        raise HTTPException(
+            status_code=404,
+            detail="Customer not found"
+        )
+
+    return {
+        "id": customer[0],
+        "shop_id": customer[1],
+        "name": customer[2],
+        "phone": customer[3],
+        "email": customer[4],
+        "created_at": customer[5],
+        "updated_at": customer[6]
+    }

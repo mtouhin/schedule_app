@@ -147,3 +147,41 @@ class BarberHoursCreate(BaseModel):
             raise ValueError("Barber cannot work after 11:45 PM")
 
         return value
+    
+class CustomerCreate(BaseModel):
+    name: str
+    phone: str
+    email: Optional[str] = None
+    
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value):
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Name cannot be empty")
+
+        return value
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value):
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Phone cannot be empty")
+
+        return value
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value):
+        if value is None:
+            return None
+
+        value = value.strip().lower()
+
+        if not value:
+            return None
+
+        return value
