@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from uuid import UUID
 from app.db_init import initialize_database
-from app.schemas import ShopCreate, BarberCreate, ServiceCreate
+from app.schemas import ShopCreate, BarberCreate, ServiceCreate, BusinessHoursCreate
 from app.shop import create_shop, get_shop
 from app.barber import create_barber, get_barbers
 from app.service import create_service, get_services
+from app.business_hours import set_business_hours, get_business_hours
 
 app = FastAPI(
     title="Barbershop API",
@@ -55,6 +56,54 @@ def get_shop_endpoint(shop_id: UUID):
         "created_at": shop[6],
         "updated_at": shop[7]
     }
+    
+@app.put("/shops/{shop_id}/business-hours")
+def set_business_hours_endpoint(
+    shop_id: UUID,
+    hours: BusinessHoursCreate
+):
+    if not hours.is_closed:
+
+        if hours.open_time is None or hours.close_time is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Open and close times are required when business is open"
+            )
+
+        if hours.close_time <= hours.open_time:
+            raise HTTPException(
+                status_code=400,
+                detail="Closing time must be after opening time"
+            )
+
+    result = set_business_hours(shop_id, hours)
+
+    return {
+        "id": result[0],
+        "shop_id": result[1],
+        "day_of_week": result[2],
+        "open_time": result[3],
+        "close_time": result[4],
+        "is_closed": result[5]
+    }
+
+
+@app.get("/shops/{shop_id}/business-hours")
+def get_business_hours_endpoint(shop_id: UUID):
+
+    hours = get_business_hours(shop_id)
+
+    return [
+        {
+            "id": row[0],
+            "shop_id": row[1],
+            "day_of_week": row[2],
+            "open_time": row[3],
+            "close_time": row[4],
+            "is_closed": row[5]
+        }
+        for row in hours
+    ]
 
 @app.post("/shops/{shop_id}/barbers")
 def create_barber_endpoint(

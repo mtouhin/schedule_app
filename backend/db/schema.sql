@@ -38,6 +38,19 @@ CREATE TABLE barbers (
 CREATE INDEX idx_barbers_shop_id
 ON barbers(shop_id);
 
+CREATE UNIQUE INDEX IF NOT EXISTS
+idx_barbers_shop_name_unique
+ON barbers (shop_id, LOWER(name));
+
+CREATE UNIQUE INDEX IF NOT EXISTS
+idx_barbers_shop_phone_unique
+ON barbers (shop_id, phone)
+WHERE phone IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS
+idx_barbers_shop_email_unique
+ON barbers (shop_id, LOWER(email))
+WHERE email IS NOT NULL;
 
 -- ============================================
 -- SERVICES
