@@ -1,6 +1,6 @@
 from pydantic import BaseModel, field_validator
 from typing import Optional
-from datetime import time
+from datetime import datetime, time
 
 class ShopCreate(BaseModel):
     name: str
@@ -8,6 +8,33 @@ class ShopCreate(BaseModel):
     email: Optional[str] = None
     address: Optional[str] = None
     timezone: str = "America/Chicago"
+
+def parse_time(value):
+    if value is None:
+        return None
+
+    if isinstance(value, time):
+        return value
+
+    if not isinstance(value, str):
+        raise ValueError("Invalid time")
+
+    value = value.strip()
+
+    formats = [
+        "%I:%M %p",   # 9:00 AM
+        "%I %p",      # 9 AM
+    ]
+
+    for fmt in formats:
+        try:
+            return datetime.strptime(value, fmt).time()
+        except ValueError:
+            continue
+
+    raise ValueError(
+        "Time must be in format like '9:00 AM' or '5:30 PM'"
+    )
 
 class BarberCreate(BaseModel):
     name: str
@@ -73,6 +100,7 @@ class BusinessHoursCreate(BaseModel):
     @field_validator("open_time", "close_time")
     @classmethod
     def validate_time(cls, value):
+        value = parse_time(value)
         if value is None:
             return value
 
@@ -87,7 +115,7 @@ class BusinessHoursCreate(BaseModel):
         if value.hour > 23:
             raise ValueError("Business cannot operate after 11:45 PM")
 
-        return value
+        return time(value.hour, value.minute, value.second, value.microsecond)
 
 class BarberHoursCreate(BaseModel):
     day_of_week: int

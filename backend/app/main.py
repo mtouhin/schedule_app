@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from uuid import UUID
 from app.db_init import initialize_database
-from app.schemas import ShopCreate, BarberCreate, ServiceCreate, BusinessHoursCreate
+from app.schemas import ShopCreate, BarberCreate, ServiceCreate, BusinessHoursCreate, BarberHoursCreate
 from app.shop import create_shop, get_shop
 from app.barber import create_barber, get_barbers
 from app.service import create_service, get_services
 from app.business_hours import set_business_hours, get_business_hours
+from app.barber_hours import set_barber_hours, get_barber_hours
 
 app = FastAPI(
     title="Barbershop API",
@@ -138,6 +139,50 @@ def get_barbers_endpoint(shop_id: UUID):
         }
         for barber in barbers
     ]
+@app.get("/barbers/{barber_id}/hours")
+def get_barber_hours_endpoint(
+    barber_id: UUID
+):
+
+    hours = get_barber_hours(barber_id)
+
+    return [
+        {
+            "id": row[0],
+            "barber_id": row[1],
+            "day_of_week": row[2],
+            "start_time": row[3],
+            "end_time": row[4],
+            "is_off": row[5]
+        }
+        for row in hours
+    ]
+
+@app.put("/barbers/{barber_id}/hours")
+def set_barber_hours_endpoint(
+    barber_id: UUID,
+    hours: BarberHoursCreate
+):
+    try:
+        result = set_barber_hours(
+            barber_id,
+            hours
+        )
+
+        return {
+            "id": result[0],
+            "barber_id": result[1],
+            "day_of_week": result[2],
+            "start_time": result[3],
+            "end_time": result[4],
+            "is_off": result[5]
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
 
 @app.post("/shops/{shop_id}/services")
 def create_service_endpoint(
