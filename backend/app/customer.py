@@ -3,7 +3,6 @@ from uuid import UUID
 from app.db import get_connection
 from app.schemas import CustomerCreate
 
-
 def create_customer(shop_id: UUID, customer: CustomerCreate):
     with get_connection() as conn:
         with conn.cursor() as cursor:

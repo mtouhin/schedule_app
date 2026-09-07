@@ -16,7 +16,6 @@ CREATE TABLE shops (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-
 -- ============================================
 -- BARBERS
 -- ============================================
@@ -75,7 +74,6 @@ CREATE TABLE services (
 CREATE INDEX idx_services_shop_id
 ON services(shop_id);
 
-
 -- ============================================
 -- CUSTOMERS
 -- ============================================
@@ -96,7 +94,6 @@ CREATE TABLE customers (
 
 CREATE INDEX idx_customers_shop_id
 ON customers(shop_id);
-
 
 -- ============================================
 -- BUSINESS HOURS
@@ -122,7 +119,6 @@ CREATE TABLE business_hours (
 CREATE INDEX idx_business_hours_shop_id
 ON business_hours(shop_id);
 
-
 -- ============================================
 -- BARBER HOURS
 -- ============================================
@@ -146,7 +142,6 @@ CREATE TABLE barber_hours (
 CREATE INDEX idx_barber_hours_barber_id
 ON barber_hours(barber_id);
 
-
 -- ============================================
 -- SHOP CLOSURES / HOLIDAYS
 -- ============================================
@@ -165,7 +160,6 @@ CREATE TABLE shop_closures (
 
 CREATE INDEX idx_shop_closures_shop_date
 ON shop_closures(shop_id, closure_date);
-
 
 -- ============================================
 -- APPOINTMENTS

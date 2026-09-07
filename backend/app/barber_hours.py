@@ -217,7 +217,6 @@ def set_barber_hours(
 
             return result
 
-
 def get_barber_hours(barber_id: UUID):
 
     with get_connection() as conn:

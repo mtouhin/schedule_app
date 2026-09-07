@@ -3,7 +3,6 @@ from uuid import UUID
 from app.db import get_connection
 from app.schemas import ShopCreate
 
-
 def create_shop(shop: ShopCreate):
     with get_connection() as conn:
         with conn.cursor() as cursor:
@@ -36,7 +35,6 @@ def create_shop(shop: ShopCreate):
             )
 
             return cursor.fetchone()
-
 
 def get_shop(shop_id: UUID):
     with get_connection() as conn:

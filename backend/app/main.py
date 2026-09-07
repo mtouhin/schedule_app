@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from uuid import UUID
+from datetime import date
+from typing import Optional
 from app.db_init import initialize_database
 from app.schemas import (ShopCreate, 
                          BarberCreate, 
@@ -16,6 +18,7 @@ from app.business_hours import set_business_hours, get_business_hours
 from app.barber_hours import set_barber_hours, get_barber_hours
 from app.customer import get_customer_by_phone, create_customer
 from app.appointment import create_appointment
+from app.scheduler import get_available_times
 
 app = FastAPI(
     title="Barbershop API",
@@ -273,6 +276,7 @@ def create_appointment_endpoint(
     appointment: AppointmentCreate
 ):
     try:
+
         result = create_appointment(
             shop_id,
             appointment
@@ -292,7 +296,36 @@ def create_appointment_endpoint(
         }
 
     except ValueError as e:
+
         raise HTTPException(
             status_code=400,
             detail=str(e)
         )
+
+@app.get("/shops/{shop_id}/availability")
+def get_availability_endpoint(
+    shop_id: UUID,
+    service_id: UUID,
+    selected_date: date,
+    barber_id: Optional[UUID] = None
+):
+    try:
+        available = get_available_times(
+            shop_id=shop_id,
+            service_id=service_id,
+            selected_date=selected_date,
+            barber_id=barber_id
+        )
+
+        return {
+            "date": selected_date,
+            "service_id": service_id,
+            "barber_id": barber_id,
+            "available_times": available
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )   

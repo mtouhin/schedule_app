@@ -2,9 +2,7 @@ from pathlib import Path
 
 from app.db import get_connection
 
-
 SCHEMA_PATH = Path(__file__).parent.parent / "db" / "schema.sql"
-
 
 def initialize_database():
     print("Initializing database...")

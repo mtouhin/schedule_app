@@ -3,7 +3,6 @@ from uuid import UUID
 from app.db import get_connection
 from app.schemas import BusinessHoursCreate
 
-
 def set_business_hours(
     shop_id: UUID,
     hours: BusinessHoursCreate
@@ -81,7 +80,6 @@ def set_business_hours(
                 )
 
             return cursor.fetchone()
-
 
 def get_business_hours(shop_id: UUID):
 

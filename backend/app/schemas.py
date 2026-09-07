@@ -2,6 +2,7 @@ from pydantic import BaseModel, field_validator
 from typing import Optional
 from datetime import datetime, time
 from uuid import UUID
+from typing import Optional
 
 class ShopCreate(BaseModel):
     name: str
@@ -193,3 +194,13 @@ class AppointmentCreate(BaseModel):
     barber_id: Optional[UUID] = None
     start_time: datetime
     notes: Optional[str] = None
+    
+    @field_validator("start_time")
+    @classmethod
+    def validate_start_time(cls, value):
+        if value.tzinfo is not None:
+            raise ValueError(
+                "start_time must not include a timezone"
+            )
+
+        return value

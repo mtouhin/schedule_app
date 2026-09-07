@@ -1,7 +1,9 @@
+from datetime import timedelta
 from uuid import UUID
-
+from psycopg.errors import ExclusionViolation
 from app.db import get_connection
 from app.schemas import AppointmentCreate
+from app.scheduler import get_available_times
 
 
 def create_appointment(
@@ -11,7 +13,10 @@ def create_appointment(
     with get_connection() as conn:
         with conn.cursor() as cursor:
 
-            # Get service duration
+            # --------------------------------
+            # Get service
+            # --------------------------------
+
             cursor.execute(
                 """
                 SELECT duration_minutes
@@ -29,25 +34,17 @@ def create_appointment(
             service = cursor.fetchone()
 
             if not service:
-                raise ValueError("Service not found")
+                raise ValueError(
+                    "Service not found"
+                )
 
             duration_minutes = service[0]
 
-            # Calculate end time
-            cursor.execute(
-                """
-                SELECT
-                    %s + (%s * INTERVAL '1 minute');
-                """,
-                (
-                    appointment.start_time,
-                    duration_minutes
-                )
-            )
 
-            end_time = cursor.fetchone()[0]
+            # --------------------------------
+            # Validate customer
+            # --------------------------------
 
-            # Make sure customer belongs to this shop
             cursor.execute(
                 """
                 SELECT id
@@ -68,8 +65,19 @@ def create_appointment(
                     "Customer not found"
                 )
 
-            # Make sure barber belongs to this shop
-            if appointment.barber_id:
+
+            # --------------------------------
+            # Determine barber
+            # --------------------------------
+
+            selected_barber_id = appointment.barber_id
+
+
+            # --------------------------------
+            # If specific barber was selected
+            # --------------------------------
+
+            if selected_barber_id:
 
                 cursor.execute(
                     """
@@ -80,7 +88,7 @@ def create_appointment(
                       AND is_active = TRUE;
                     """,
                     (
-                        appointment.barber_id,
+                        selected_barber_id,
                         shop_id
                     )
                 )
@@ -92,50 +100,129 @@ def create_appointment(
                         "Barber not found"
                     )
 
-            # Create appointment
-            cursor.execute(
-                """
-                INSERT INTO appointments (
-                    shop_id,
-                    customer_id,
-                    barber_id,
-                    service_id,
-                    start_time,
-                    end_time,
-                    status,
-                    notes
+
+            # --------------------------------
+            # If "any barber" was selected
+            # --------------------------------
+
+            else:
+
+                available = get_available_times(
+                    shop_id=shop_id,
+                    service_id=appointment.service_id,
+                    selected_date=appointment.start_time.date()
                 )
-                VALUES (
-                    %s, %s, %s, %s,
-                    %s, %s,
-                    'BOOKED',
-                    %s
+
+                requested_time = (
+                    appointment.start_time.time()
                 )
-                RETURNING
-                    id,
-                    shop_id,
-                    customer_id,
-                    barber_id,
-                    service_id,
-                    start_time,
-                    end_time,
-                    status,
-                    notes,
-                    created_at;
-                """,
-                (
-                    shop_id,
-                    appointment.customer_id,
-                    appointment.barber_id,
-                    appointment.service_id,
-                    appointment.start_time,
-                    end_time,
-                    appointment.notes
+
+                matching_slot = None
+
+                for slot in available:
+
+                    if slot["time"] == requested_time:
+                        matching_slot = slot
+                        break
+
+                if not matching_slot:
+                    raise ValueError(
+                        "The requested time is not available"
+                    )
+
+                # Pick the first available barber.
+                selected_barber_id = (
+                    matching_slot["barber_ids"][0]
+                )
+
+
+            # --------------------------------
+            # Final availability check
+            # --------------------------------
+
+            available = get_available_times(
+                shop_id=shop_id,
+                service_id=appointment.service_id,
+                selected_date=appointment.start_time.date(),
+                barber_id=selected_barber_id
+            )
+
+            requested_time = (
+                appointment.start_time.time()
+            )
+
+            is_available = any(
+                slot["time"] == requested_time
+                for slot in available
+            )
+
+            if not is_available:
+                raise ValueError(
+                    "The selected time is no longer available"
+                )
+
+
+            # --------------------------------
+            # Calculate end time
+            # --------------------------------
+
+            end_time = (
+                appointment.start_time
+                +
+                timedelta(
+                    minutes=duration_minutes
                 )
             )
 
-            result = cursor.fetchone()
 
-            conn.commit()
+            # --------------------------------
+            # Create appointment
+            # --------------------------------
 
-            return result
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO appointments (
+                        shop_id,
+                        customer_id,
+                        barber_id,
+                        service_id,
+                        start_time,
+                        end_time,
+                        status,
+                        notes
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, 'BOOKED', %s)
+                    RETURNING
+                        id,
+                        shop_id,
+                        customer_id,
+                        barber_id,
+                        service_id,
+                        start_time,
+                        end_time,
+                        status,
+                        notes,
+                        created_at;
+                    """,
+                    (
+                        shop_id,
+                        appointment.customer_id,
+                        selected_barber_id,
+                        appointment.service_id,
+                        appointment.start_time,
+                        end_time,
+                        appointment.notes
+                    )
+                )
+                result = cursor.fetchone()
+                conn.commit()
+                return result
+
+            except ExclusionViolation:
+                conn.rollback()
+
+                raise ValueError(
+                    "That time was just booked by another customer. "
+                    "Please choose another time."
+                )
