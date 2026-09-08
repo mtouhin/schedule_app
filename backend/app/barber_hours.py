@@ -133,11 +133,6 @@ def set_barber_hours(
             shop_open = make_time_naive(shop_hours[0])
             shop_close = make_time_naive(shop_hours[1])
             shop_closed = shop_hours[2]
-            
-            start_time = make_time_naive(hours.start_time)
-            end_time = make_time_naive(hours.end_time)
-            print("hours.start_time:", hours.start_time, hours.start_time.tzinfo)
-            print("shop_open:", shop_open, shop_open.tzinfo)
 
             # ------------------------------------------------
             # 6. Shop must actually be open
@@ -156,6 +151,11 @@ def set_barber_hours(
                 raise ValueError(
                     "Shop business hours are incomplete"
                 )
+            
+            start_time = make_time_naive(hours.start_time)
+            end_time = make_time_naive(hours.end_time)
+            print("hours.start_time:", hours.start_time, hours.start_time.tzinfo)
+            print("shop_open:", shop_open, shop_open.tzinfo)
 
             # ------------------------------------------------
             # 8. Barber cannot start before shop opens

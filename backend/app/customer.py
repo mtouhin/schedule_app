@@ -1,37 +1,48 @@
 from uuid import UUID
-
+from psycopg.errors import UniqueViolation
 from app.db import get_connection
 from app.schemas import CustomerCreate
 
 def create_customer(shop_id: UUID, customer: CustomerCreate):
     with get_connection() as conn:
         with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO customers (
-                    shop_id,
-                    name,
-                    phone,
-                    email
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO customers (
+                        shop_id,
+                        name,
+                        phone,
+                        email
+                    )
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING
+                        id,
+                        shop_id,
+                        name,
+                        phone,
+                        email,
+                        created_at;
+                    """,
+                    (
+                        shop_id,
+                        customer.name,
+                        customer.phone,
+                        customer.email
+                    )
                 )
-                VALUES (%s, %s, %s, %s)
-                RETURNING
-                    id,
-                    shop_id,
-                    name,
-                    phone,
-                    email,
-                    created_at;
-                """,
-                (
-                    shop_id,
-                    customer.name,
-                    customer.phone,
-                    customer.email
-                )
-            )
 
-            return cursor.fetchone()
+                result = cursor.fetchone()
+                conn.commit()
+
+                return result
+
+            except UniqueViolation:
+                conn.rollback()
+
+                raise ValueError(
+                    "A customer with this phone number already exists"
+                )
 
 def get_customer_by_phone(shop_id: UUID, phone: str):
     with get_connection() as conn:

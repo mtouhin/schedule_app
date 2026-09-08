@@ -57,3 +57,25 @@ def get_shop(shop_id: UUID):
             )
 
             return cursor.fetchone()
+
+def delete_shop(shop_id: UUID):
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+
+            cursor.execute(
+                """
+                DELETE FROM shops
+                WHERE id = %s
+                RETURNING id;
+                """,
+                (shop_id,)
+            )
+
+            result = cursor.fetchone()
+
+            if not result:
+                raise ValueError("Shop not found")
+
+            conn.commit()
+
+            return result[0]

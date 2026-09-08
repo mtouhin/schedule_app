@@ -18,24 +18,16 @@ def parse_time(value):
     if isinstance(value, time):
         return value
 
-    if not isinstance(value, str):
-        raise ValueError("Invalid time")
+    value = value.strip().upper()
 
-    value = value.strip()
-
-    formats = [
-        "%I:%M %p",   # 9:00 AM
-        "%I %p",      # 9 AM
-    ]
-
-    for fmt in formats:
+    for fmt in ("%I:%M %p", "%I %p"):
         try:
             return datetime.strptime(value, fmt).time()
         except ValueError:
             continue
 
     raise ValueError(
-        "Time must be in format like '9:00 AM' or '5:30 PM'"
+        "Time must be in format like '9:00 AM'"
     )
 
 class BarberCreate(BaseModel):
@@ -91,33 +83,33 @@ class BusinessHoursCreate(BaseModel):
     close_time: Optional[time] = None
     is_closed: bool = False
 
-    @field_validator("day_of_week")
+    @field_validator("open_time", "close_time", mode="before")
     @classmethod
-    def validate_day(cls, value):
-        if value < 0 or value > 6:
-            raise ValueError("day_of_week must be between 0 and 6")
-
-        return value
+    def parse_times(cls, value):
+        return parse_time(value)
 
     @field_validator("open_time", "close_time")
     @classmethod
     def validate_time(cls, value):
-        value = parse_time(value)
         if value is None:
             return value
 
-        # 15-minute increments
-        if value.minute % 15 != 0 or value.second != 0:
-            raise ValueError("Time must be in 15-minute increments")
+        if value.minute % 15 != 0:
+            raise ValueError(
+                "Time must be in 15-minute increments"
+            )
 
-        # Reasonable business hours
-        if value.hour < 5:
-            raise ValueError("Business cannot open before 5:00 AM")
+        if value < time(5, 0):
+            raise ValueError(
+                "Time cannot be earlier than 5:00 AM"
+            )
 
-        if value.hour > 23:
-            raise ValueError("Business cannot operate after 11:45 PM")
+        if value > time(23, 45):
+            raise ValueError(
+                "Time cannot be later than 11:45 PM"
+            )
 
-        return time(value.hour, value.minute, value.second, value.microsecond)
+        return value
 
 class BarberHoursCreate(BaseModel):
     day_of_week: int
@@ -125,13 +117,10 @@ class BarberHoursCreate(BaseModel):
     end_time: Optional[time] = None
     is_off: bool = False
 
-    @field_validator("day_of_week")
+    @field_validator("start_time", "end_time", mode="before")
     @classmethod
-    def validate_day(cls, value):
-        if value < 0 or value > 6:
-            raise ValueError("day_of_week must be between 0 and 6")
-
-        return value
+    def parse_times(cls, value):
+        return parse_time(value)
 
     @field_validator("start_time", "end_time")
     @classmethod
@@ -139,14 +128,20 @@ class BarberHoursCreate(BaseModel):
         if value is None:
             return value
 
-        if value.minute % 15 != 0 or value.second != 0:
-            raise ValueError("Time must be in 15-minute increments")
+        if value.minute % 15 != 0:
+            raise ValueError(
+                "Time must be in 15-minute increments"
+            )
 
-        if value.hour < 5:
-            raise ValueError("Barber cannot start before 5:00 AM")
+        if value < time(5, 0):
+            raise ValueError(
+                "Time cannot be earlier than 5:00 AM"
+            )
 
-        if value.hour > 23:
-            raise ValueError("Barber cannot work after 11:45 PM")
+        if value > time(23, 45):
+            raise ValueError(
+                "Time cannot be later than 11:45 PM"
+            )
 
         return value
     

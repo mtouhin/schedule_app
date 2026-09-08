@@ -11,9 +11,9 @@ from app.schemas import (ShopCreate,
                          CustomerCreate,
                          AppointmentCreate)
 
-from app.shop import create_shop, get_shop
+from app.shop import create_shop, get_shop, delete_shop
 from app.barber import create_barber, get_barbers
-from app.service import create_service, get_services
+from app.service import create_service, get_services, delete_service
 from app.business_hours import set_business_hours, get_business_hours
 from app.barber_hours import set_barber_hours, get_barber_hours
 from app.customer import get_customer_by_phone, create_customer
@@ -69,7 +69,24 @@ def get_shop_endpoint(shop_id: UUID):
         "created_at": shop[6],
         "updated_at": shop[7]
     }
-    
+
+@app.delete("/shops/{shop_id}")
+def delete_shop_endpoint(shop_id: UUID):
+
+    try:
+        deleted_id = delete_shop(shop_id)
+
+        return {
+            "message": "Shop deleted",
+            "id": deleted_id
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
+
 @app.put("/shops/{shop_id}/business-hours")
 def set_business_hours_endpoint(
     shop_id: UUID,
@@ -122,17 +139,23 @@ def create_barber_endpoint(
     shop_id: UUID,
     barber: BarberCreate
 ):
-    barber = create_barber(shop_id, barber)
+    try:
+        barber = create_barber(shop_id, barber)
 
-    return {
-        "id": barber[0],
-        "shop_id": barber[1],
-        "name": barber[2],
-        "phone": barber[3],
-        "email": barber[4],
-        "is_active": barber[5],
-        "created_at": barber[6]
-    }
+        return {
+            "id": barber[0],
+            "shop_id": barber[1],
+            "name": barber[2],
+            "phone": barber[3],
+            "email": barber[4],
+            "is_active": barber[5],
+            "created_at": barber[6]
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=str(e)
+        )
 
 @app.get("/shops/{shop_id}/barbers")
 def get_barbers_endpoint(shop_id: UUID):
@@ -231,21 +254,56 @@ def get_services_endpoint(shop_id: UUID):
         for service in services
     ]
 
+@app.delete("/shops/{shop_id}/services/{service_id}")
+def delete_service_endpoint(
+    shop_id: UUID,
+    service_id: UUID
+):
+    try:
+        deleted_id = delete_service(
+            shop_id,
+            service_id
+        )
+
+        return {
+            "message": "Service deactivated",
+            "id": deleted_id
+        }
+
+    except ValueError as e:
+        if str(e) == "Service not found":
+            raise HTTPException(
+                status_code=404,
+                detail=str(e)
+            )
+
+        raise HTTPException(
+            status_code=409,
+            detail=str(e)
+        )
+
 @app.post("/shops/{shop_id}/customers")
 def create_customer_endpoint(
     shop_id: UUID,
     customer: CustomerCreate
 ):
-    result = create_customer(shop_id, customer)
+    try:
+        result = create_customer(shop_id, customer)
 
-    return {
-        "id": result[0],
-        "shop_id": result[1],
-        "name": result[2],
-        "phone": result[3],
-        "email": result[4],
-        "created_at": result[5]
-    }
+        return {
+            "id": result[0],
+            "shop_id": result[1],
+            "name": result[2],
+            "phone": result[3],
+            "email": result[4],
+            "created_at": result[5]
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=str(e)
+        )
 
 @app.get("/shops/{shop_id}/customers/phone/{phone}")
 def get_customer_by_phone_endpoint(
@@ -306,19 +364,19 @@ def create_appointment_endpoint(
 def get_availability_endpoint(
     shop_id: UUID,
     service_id: UUID,
-    selected_date: date,
+    date: date,
     barber_id: Optional[UUID] = None
 ):
     try:
         available = get_available_times(
             shop_id=shop_id,
             service_id=service_id,
-            selected_date=selected_date,
+            selected_date=date,
             barber_id=barber_id
         )
 
         return {
-            "date": selected_date,
+            "date": date,
             "service_id": service_id,
             "barber_id": barber_id,
             "available_times": available
@@ -328,4 +386,4 @@ def get_availability_endpoint(
         raise HTTPException(
             status_code=400,
             detail=str(e)
-        )   
+        )
