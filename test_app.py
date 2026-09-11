@@ -278,12 +278,210 @@ try:
         "Retrieve business hours"
     )
 
+    # ============================================================
+    # 3. SHOP CLOSURES
+    # ============================================================
+
+    print_section("3. SHOP CLOSURES")
+
+    # ------------------------------------------------------------
+    # Create full-day holiday closure
+    # ------------------------------------------------------------
+
+    response = requests.post(
+        f"{BASE_URL}/shops/{shop_id}/closures",
+        json={
+            "closure_date": "2026-12-25",
+            "reason": "Christmas",
+            "closure_type": "HOLIDAY"
+        }
+    )
+
+    check(
+        response,
+        200,
+        "Create full-day Christmas closure"
+    )
+
+    christmas_closure = response.json()
+    christmas_closure_id = christmas_closure["id"]
+
+    assert christmas_closure["start_time"] is None
+    assert christmas_closure["end_time"] is None
+    assert christmas_closure["reason"] == "Christmas"
+    assert christmas_closure["closure_type"] == "HOLIDAY"
+
+
+    # ------------------------------------------------------------
+    # Create partial-day holiday closure
+    # ------------------------------------------------------------
+
+    response = requests.post(
+        f"{BASE_URL}/shops/{shop_id}/closures",
+        json={
+            "closure_date": "2026-11-25",
+            "start_time": "09:00:00",
+            "end_time": "13:00:00",
+            "reason": "Day before Thanksgiving",
+            "closure_type": "HOLIDAY"
+        }
+    )
+
+    check(
+        response,
+        200,
+        "Create partial-day holiday closure"
+    )
+
+    partial_closure = response.json()
+    partial_closure_id = partial_closure["id"]
+
+    assert partial_closure["start_time"] == "09:00:00"
+    assert partial_closure["end_time"] == "13:00:00"
+    assert partial_closure["closure_type"] == "HOLIDAY"
+
+
+    # ------------------------------------------------------------
+    # Create emergency closure
+    # ------------------------------------------------------------
+
+    response = requests.post(
+        f"{BASE_URL}/shops/{shop_id}/closures",
+        json={
+            "closure_date": "2026-09-15",
+            "reason": "Emergency power outage",
+            "closure_type": "EMERGENCY"
+        }
+    )
+
+    check(
+        response,
+        200,
+        "Create emergency closure"
+    )
+
+    emergency_closure = response.json()
+    emergency_closure_id = emergency_closure["id"]
+
+    assert emergency_closure["start_time"] is None
+    assert emergency_closure["end_time"] is None
+    assert emergency_closure["closure_type"] == "EMERGENCY"
+
+
+    # ------------------------------------------------------------
+    # Get all closures
+    # ------------------------------------------------------------
+
+    response = requests.get(
+        f"{BASE_URL}/shops/{shop_id}/closures"
+    )
+
+    check(
+        response,
+        200,
+        "Get shop closures"
+    )
+
+    closures = response.json()
+
+    assert len(closures) == 3
+
+    # ------------------------------------------------------------
+    # Get individual closure
+    # ------------------------------------------------------------
+
+    response = requests.get(
+        f"{BASE_URL}/shops/{shop_id}/closures/{christmas_closure_id}"
+    )
+
+    check(
+        response,
+        200,
+        "Get individual closure"
+    )
+
+    closure = response.json()
+
+    assert closure["id"] == christmas_closure_id
+    assert closure["closure_date"] == "2026-12-25"
+
+    # ------------------------------------------------------------
+    # Duplicate closure should fail
+    # ------------------------------------------------------------
+
+    response = requests.post(
+        f"{BASE_URL}/shops/{shop_id}/closures",
+        json={
+            "closure_date": "2026-12-25",
+            "reason": "Another Christmas closure",
+            "closure_type": "HOLIDAY"
+        }
+    )
+
+    check(
+        response,
+        409,
+        "Reject duplicate closure date"
+    )
+
+    # ------------------------------------------------------------
+    # Invalid closure times
+    # ------------------------------------------------------------
+
+    response = requests.post(
+        f"{BASE_URL}/shops/{shop_id}/closures",
+        json={
+            "closure_date": "2026-10-31",
+            "start_time": "14:00:00",
+            "end_time": "10:00:00",
+            "reason": "Invalid closure",
+            "closure_type": "HOLIDAY"
+        }
+    )
+
+    check(
+        response,
+        422,
+        "Reject closure with end time before start time"
+    )
+
+
+    # ------------------------------------------------------------
+    # Delete emergency closure
+    # ------------------------------------------------------------
+
+    response = requests.delete(
+        f"{BASE_URL}/shops/{shop_id}/closures/{emergency_closure_id}"
+    )
+
+    check(
+        response,
+        200,
+        "Delete emergency closure"
+    )
+
+
+    # ------------------------------------------------------------
+    # Verify deleted closure is gone
+    # ------------------------------------------------------------
+
+    response = requests.get(
+        f"{BASE_URL}/shops/{shop_id}/closures/{emergency_closure_id}"
+    )
+
+    check(
+        response,
+        404,
+        "Deleted closure no longer exists"
+    )
+
+
 
     # ========================================================
-    # 3. BARBERS
+    # 4. BARBERS
     # ========================================================
 
-    print_section("3. BARBERS")
+    print_section("4. BARBERS")
 
 
     # Barber 1
@@ -404,10 +602,10 @@ try:
 
 
     # ========================================================
-    # 4. BARBER HOURS
+    # 5. BARBER HOURS
     # ========================================================
 
-    print_section("4. BARBER HOURS")
+    print_section("5. BARBER HOURS")
 
 
     # John: 9 AM - 5 PM
@@ -554,10 +752,10 @@ try:
 
 
     # ========================================================
-    # 5. SERVICES
+    # 6. SERVICES
     # ========================================================
 
-    print_section("5. SERVICES")
+    print_section("6. SERVICES")
 
 
     # Haircut
@@ -620,10 +818,10 @@ try:
 
 
     # ========================================================
-    # 6. CUSTOMERS
+    # 7. CUSTOMERS
     # ========================================================
 
-    print_section("6. CUSTOMERS")
+    print_section("7. CUSTOMERS")
 
 
     # Alice
@@ -704,10 +902,10 @@ try:
 
 
     # ========================================================
-    # 7. AVAILABILITY
+    # 8. AVAILABILITY
     # ========================================================
 
-    print_section("7. AVAILABILITY")
+    print_section("8. AVAILABILITY")
 
 
     # Monday = September 7, 2026
@@ -789,10 +987,10 @@ try:
 
 
     # ========================================================
-    # 8. CREATE APPOINTMENT
+    # 9. CREATE APPOINTMENT
     # ========================================================
 
-    print_section("8. APPOINTMENTS")
+    print_section("9. APPOINTMENTS")
 
 
     # Alice → John → 10 AM
@@ -821,10 +1019,10 @@ try:
 
 
     # ========================================================
-    # 9. DOUBLE BOOKING
+    # 10. DOUBLE BOOKING
     # ========================================================
 
-    print_section("9. DOUBLE BOOKING")
+    print_section("10. DOUBLE BOOKING")
 
 
     # Bob tries John at same time
@@ -848,10 +1046,10 @@ try:
 
 
     # ========================================================
-    # 10. BACK-TO-BACK
+    # 11. BACK-TO-BACK
     # ========================================================
 
-    print_section("10. BACK-TO-BACK APPOINTMENT")
+    print_section("11. BACK-TO-BACK APPOINTMENT")
 
 
     # Existing:
@@ -881,10 +1079,10 @@ try:
 
 
     # ========================================================
-    # 11. OVERLAPPING APPOINTMENT
+    # 12. OVERLAPPING APPOINTMENT
     # ========================================================
 
-    print_section("11. OVERLAPPING APPOINTMENT")
+    print_section("12. OVERLAPPING APPOINTMENT")
 
 
     # Existing:
@@ -916,10 +1114,10 @@ try:
 
 
     # ========================================================
-    # 12. ANY BARBER
+    # 13. ANY BARBER
     # ========================================================
 
-    print_section("12. ANY BARBER")
+    print_section("13. ANY BARBER")
 
 
     # John and Mike both exist.
@@ -955,10 +1153,10 @@ try:
     )
 
     # ========================================================
-    # 13. APPOINTMENT MANAGEMENT 
+    # 14. APPOINTMENT MANAGEMENT 
     # ======================================================== 
     
-    print_section("13. APPOINTMENT MANAGEMENT") 
+    print_section("14. APPOINTMENT MANAGEMENT") 
     # -------------------------------------------------------- 
     # Get appointment 
     # -------------------------------------------------------- 
@@ -1032,10 +1230,10 @@ try:
     check( response, 200, "Retrieve shop appointments for John" )
 
     # ======================================================== 
-    # 14. APPOINTMENT STATUS 
+    # 15. APPOINTMENT STATUS 
     # ======================================================== 
     
-    print_section("14. APPOINTMENT STATUS") 
+    print_section("15. APPOINTMENT STATUS") 
     
     # -------------------------------------------------------- 
     # Confirm appointment 
@@ -1071,10 +1269,10 @@ try:
     check( response, 200, "Complete appointment" )
     
     # ======================================================== 
-    # 15. CANCEL APPOINTMENT 
+    # 16. CANCEL APPOINTMENT 
     # ======================================================== 
     
-    print_section("15. CANCEL APPOINTMENT") 
+    print_section("16. CANCEL APPOINTMENT") 
     
     # Create another appointment so we can test cancellation 
     # without affecting the appointment above. 
@@ -1105,10 +1303,10 @@ try:
     check( response, 200, "Cancel appointment" )
 
     # ======================================================== 
-    # 16. CANCELLATION FREES SLOT 
+    # 17. CANCELLATION FREES SLOT 
     # ========================================================
     
-    print_section("16. CANCELLATION FREES SLOT") 
+    print_section("17. CANCELLATION FREES SLOT") 
     
     # The cancelled appointment was: 
     # 1:00 - 1:30 
@@ -1130,10 +1328,10 @@ try:
         print(slot)
 
     # ========================================================
-    # 17. SERVICE DELETION
+    # 18. SERVICE DELETION
     # ========================================================
 
-    print_section("17. SERVICE DELETION")
+    print_section("18. SERVICE DELETION")
 
     # service_1 has appointments.
     #
@@ -1164,10 +1362,10 @@ try:
     )
 
     # ========================================================
-    # 18. SHOP DELETION
+    # 19. SHOP DELETION
     # ========================================================
 
-    print_section("18. SHOP DELETION")
+    print_section("19. SHOP DELETION")
 
     response = requests.delete(
         f"{BASE_URL}/shops/{shop_id}"

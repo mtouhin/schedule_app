@@ -1,15 +1,8 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
-from datetime import datetime, time
+from datetime import datetime, date, time
 from uuid import UUID
 from typing import Optional
-
-class ShopCreate(BaseModel):
-    name: str
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    address: Optional[str] = None
-    timezone: str = "America/Chicago"
 
 def parse_time(value):
     if value is None:
@@ -29,6 +22,75 @@ def parse_time(value):
     raise ValueError(
         "Time must be in format like '9:00 AM'"
     )
+
+class ShopCreate(BaseModel):
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    timezone: str = "America/Chicago"
+    
+    @field_validator("address")
+    @classmethod
+    def validate_address(cls, value):
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Address cannot be empty")
+
+        return value
+
+class ShopClosureCreate(BaseModel):
+    closure_date: date
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    reason: Optional[str] = None
+    closure_type: str = "HOLIDAY"
+
+    @model_validator(mode="after")
+    def validate_times(self):
+        if (self.start_time is None) != (self.end_time is None):
+            raise ValueError(
+                "Both start_time and end_time are required for a partial-day closure"
+            )
+
+        if (
+            self.start_time is not None
+            and self.end_time is not None
+            and self.end_time <= self.start_time
+        ):
+            raise ValueError(
+                "Closure end time must be after start time"
+            )
+
+        return self
+
+    @field_validator("closure_type")
+    @classmethod
+    def validate_closure_type(cls, value):
+        value = value.strip().upper()
+
+        allowed = {"HOLIDAY", "EMERGENCY", "OTHER"}
+
+        if value not in allowed:
+            raise ValueError(
+                "closure_type must be HOLIDAY, EMERGENCY, or OTHER"
+            )
+
+        return value
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value):
+        if value is None:
+            return None
+
+        value = value.strip()
+
+        if not value:
+            return None
+
+        return value
 
 class BarberCreate(BaseModel):
     name: str

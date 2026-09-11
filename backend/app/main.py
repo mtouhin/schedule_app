@@ -4,6 +4,7 @@ from datetime import date
 from typing import Optional
 from app.db_init import initialize_database
 from app.schemas import (ShopCreate, 
+                         ShopClosureCreate,
                          BarberCreate, 
                          ServiceCreate, 
                          BusinessHoursCreate, 
@@ -14,6 +15,11 @@ from app.schemas import (ShopCreate,
                          AppointmentStatusUpdate)
 
 from app.shop import create_shop, get_shop, delete_shop
+from app.closure import (create_closure,
+                         get_closure,
+                         get_closures,
+                         delete_closure)
+
 from app.barber import create_barber, get_barbers
 from app.service import create_service, get_services, delete_service
 from app.business_hours import set_business_hours, get_business_hours
@@ -143,6 +149,101 @@ def get_business_hours_endpoint(shop_id: UUID):
         }
         for row in hours
     ]
+
+@app.post("/shops/{shop_id}/closures")
+def create_closure_endpoint(
+    shop_id: UUID,
+    closure: ShopClosureCreate
+):
+    try:
+        result = create_closure(
+            shop_id,
+            closure
+        )
+
+        return {
+            "id": result["id"],
+            "shop_id": result["shop_id"],
+            "closure_date": result["closure_date"],
+            "start_time": result["start_time"],
+            "end_time": result["end_time"],
+            "reason": result["reason"],
+            "closure_type": result["closure_type"],
+            "created_at": result["created_at"],
+        }
+
+    except ValueError as e:
+        message = str(e)
+
+        if message == "Shop not found":
+            raise HTTPException(
+                status_code=404,
+                detail=message
+            )
+
+        raise HTTPException(
+            status_code=409,
+            detail=message
+        )
+
+@app.get("/shops/{shop_id}/closures")
+def get_closures_endpoint(shop_id: UUID):
+
+    closures = get_closures(shop_id)
+
+    return [
+        {
+            "id": closure["id"],
+            "shop_id": closure["shop_id"],
+            "closure_date": closure["closure_date"],
+            "start_time": closure["start_time"],
+            "end_time": closure["end_time"],
+            "reason": closure["reason"],
+            "closure_type": closure["closure_type"],
+            "created_at": closure["created_at"],
+        }
+        for closure in closures
+    ]
+
+@app.get("/shops/{shop_id}/closures/{closure_id}")
+def get_closure_endpoint(
+    shop_id: UUID,
+    closure_id: UUID
+):
+    closure = get_closure(
+        shop_id,
+        closure_id
+    )
+
+    if not closure:
+        raise HTTPException(
+            status_code=404,
+            detail="Closure not found"
+        )
+
+    return closure
+
+@app.delete("/shops/{shop_id}/closures/{closure_id}")
+def delete_closure_endpoint(
+    shop_id: UUID,
+    closure_id: UUID
+):
+    try:
+        deleted_id = delete_closure(
+            shop_id,
+            closure_id
+        )
+
+        return {
+            "message": "Closure deleted",
+            "id": deleted_id
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
 
 @app.post("/shops/{shop_id}/barbers")
 def create_barber_endpoint(

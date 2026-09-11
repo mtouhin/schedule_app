@@ -149,13 +149,22 @@ ON barber_hours(barber_id);
 CREATE TABLE shop_closures (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
-
     closure_date DATE NOT NULL,
+    start_time TIME,
+    end_time TIME,
     reason VARCHAR(255),
-
+    closure_type VARCHAR(30) NOT NULL DEFAULT 'HOLIDAY',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    UNIQUE(shop_id, closure_date)
+    CHECK (
+        (start_time IS NULL AND end_time IS NULL)
+        OR
+        (start_time IS NOT NULL AND end_time IS NOT NULL AND end_time > start_time)
+    ),
+
+    CHECK (
+        closure_type IN ('HOLIDAY', 'EMERGENCY', 'OTHER')
+    )
 );
 
 CREATE INDEX idx_shop_closures_shop_date
