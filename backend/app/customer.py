@@ -1,11 +1,12 @@
 from uuid import UUID
+from psycopg.rows import dict_row
 from psycopg.errors import UniqueViolation
 from app.db import get_connection
 from app.schemas import CustomerCreate
 
 def create_customer(shop_id: UUID, customer: CustomerCreate):
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
             try:
                 cursor.execute(
                     """
@@ -46,7 +47,7 @@ def create_customer(shop_id: UUID, customer: CustomerCreate):
 
 def get_customer_by_phone(shop_id: UUID, phone: str):
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
                 """
                 SELECT

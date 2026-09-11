@@ -1,11 +1,11 @@
 from uuid import UUID
-
+from psycopg.rows import dict_row
 from app.db import get_connection
 from app.schemas import ServiceCreate
 
 def create_service(shop_id: UUID, service: ServiceCreate):
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
                 """
                 INSERT INTO services (
@@ -39,7 +39,7 @@ def create_service(shop_id: UUID, service: ServiceCreate):
 
 def get_services(shop_id: UUID):
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
                 """
                 SELECT
@@ -62,7 +62,7 @@ def get_services(shop_id: UUID):
 
 def delete_service(shop_id: UUID, service_id: UUID):
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
 
             # Make sure the service belongs to this shop
             cursor.execute(
@@ -114,5 +114,5 @@ def delete_service(shop_id: UUID, service_id: UUID):
 
             conn.commit()
 
-            return result[0]
+            return result["id"]
         

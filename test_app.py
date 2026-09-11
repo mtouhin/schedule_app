@@ -954,13 +954,186 @@ try:
         any_barber["barber_id"]
     )
 
+    # ========================================================
+    # 13. APPOINTMENT MANAGEMENT 
+    # ======================================================== 
+    
+    print_section("13. APPOINTMENT MANAGEMENT") 
+    # -------------------------------------------------------- 
+    # Get appointment 
+    # -------------------------------------------------------- 
+    
+    response = requests.get( f"{BASE_URL}/shops/{shop_id}/appointments/{appointment_1_id}" ) 
+    check( response, 200, "Retrieve appointment" )
+    
+    # ========================================================
+    # Get shop appointments
+    # ======================================================== 
+    
+    response = requests.get( f"{BASE_URL}/shops/{shop_id}/appointments",
+                            params={ 
+                                    "date": "2026-09-07" 
+                                    } 
+                            ) 
+    check( response, 200, "Retrieve shop appointments" )
 
     # ========================================================
-    # 13. SERVICE DELETION
+    # Get barber appointments
+    # ======================================================== 
+
+    response = requests.get( f"{BASE_URL}/barbers/{barber_1_id}/appointments", 
+                            params={ 
+                                    "date": "2026-09-07" 
+                                    } 
+                            ) 
+    check( response, 200, "Retrieve John's appointments" )
+
+    # -------------------------------------------------------- 
+    # Reschedule appointment 
+    # -------------------------------------------------------- 
+    
+    # appointment_1: 
+    # Originally: 
+    # 10:00 - 10:30 
+    # Move it to: # 11:30 - 12:00 
+    
+    response = requests.patch( f"{BASE_URL}/shops/{shop_id}/appointments/{appointment_1_id}",
+                              json={ 
+                                    "start_time": "2026-09-07T11:30:00" 
+                                    } 
+                              ) 
+    check( response, 200, "Reschedule appointment" ) 
+    rescheduled = response.json() 
+    print( "New start time:", rescheduled["start_time"] )
+
+    # -------------------------------------------------------- 
+    # Reassign appointment 
+    # -------------------------------------------------------- 
+    # Move appointment from John to Mike. 
+    response = requests.patch( f"{BASE_URL}/shops/{shop_id}/appointments/{appointment_1_id}", 
+                              json={ 
+                                    "barber_id": barber_2_id 
+                                    } 
+                              ) 
+    check( response, 200, "Reassign appointment to Mike" ) 
+    reassigned = response.json() 
+    print( "New barber:", reassigned["barber_id"] )
+
+    # ========================================================
+    # Filter shop appointments by barber
+    # ======================================================== 
+
+    response = requests.get( f"{BASE_URL}/shops/{shop_id}/appointments", 
+                        params={ 
+                                "date": "2026-09-07", 
+                                "barber_id": barber_1_id
+                                } 
+                        ) 
+    check( response, 200, "Retrieve shop appointments for John" )
+
+    # ======================================================== 
+    # 14. APPOINTMENT STATUS 
+    # ======================================================== 
+    
+    print_section("14. APPOINTMENT STATUS") 
+    
+    # -------------------------------------------------------- 
+    # Confirm appointment 
+    # -------------------------------------------------------- 
+    
+    response = requests.patch( f"{BASE_URL}/shops/{shop_id}/appointments/{appointment_1_id}/status", 
+                              json={ 
+                                    "status": "CONFIRMED" 
+                                    } 
+                              ) 
+    check( response, 200, "Confirm appointment" ) 
+    
+    # -------------------------------------------------------- 
+    # Running late 
+    # -------------------------------------------------------- 
+    
+    response = requests.patch( f"{BASE_URL}/shops/{shop_id}/appointments/{appointment_1_id}/status", 
+                              json={ 
+                                    "status": "RUNNING_LATE" 
+                                    } 
+                              ) 
+    check( response, 200, "Mark appointment as running late" ) 
+    
+    # -------------------------------------------------------- 
+    # Complete appointment 
+    # -------------------------------------------------------- 
+    
+    response = requests.patch( f"{BASE_URL}/shops/{shop_id}/appointments/{appointment_1_id}/status", 
+                              json={ 
+                                    "status": "COMPLETED" 
+                                    } 
+                              ) 
+    check( response, 200, "Complete appointment" )
+    
+    # ======================================================== 
+    # 15. CANCEL APPOINTMENT 
+    # ======================================================== 
+    
+    print_section("15. CANCEL APPOINTMENT") 
+    
+    # Create another appointment so we can test cancellation 
+    # without affecting the appointment above. 
+     
+    response = requests.post( f"{BASE_URL}/shops/{shop_id}/appointments", 
+                             json={ 
+                                   "customer_id": customer_1_id, 
+                                   "service_id": service_1_id, 
+                                   "barber_id": barber_1_id, 
+                                   "start_time": "2026-09-07T13:00:00", 
+                                   "notes": "Cancellation test" 
+                                   } 
+                             ) 
+    check( response, 200, "Create appointment for cancellation test" ) 
+    cancellation_test = response.json() 
+    cancellation_test_id = cancellation_test["id"] 
+    
+    # -------------------------------------------------------- 
+    # Cancel appointment 
+    # -------------------------------------------------------- 
+    
+    response = requests.patch( f"{BASE_URL}/shops/{shop_id}/appointments/{cancellation_test_id}/status", 
+                              json={ 
+                                    "status": "CANCELLED" 
+                                    } 
+                              ) 
+    
+    check( response, 200, "Cancel appointment" )
+
+    # ======================================================== 
+    # 16. CANCELLATION FREES SLOT 
+    # ========================================================
+    
+    print_section("16. CANCELLATION FREES SLOT") 
+    
+    # The cancelled appointment was: 
+    # 1:00 - 1:30 
+    # That slot should now be available again.
+
+    response = requests.get( f"{BASE_URL}/shops/{shop_id}/availability", 
+                            params={ "service_id": service_1_id, 
+                                    "date": "2026-09-07", 
+                                    "barber_id": barber_1_id 
+                                    } 
+                            ) 
+    check( response, 200, "Check availability after cancellation" )
+
+    availability_after_cancel = response.json()
+    
+    print("\nAvailable times after cancellation:")
+    
+    for slot in availability_after_cancel["available_times"]: 
+        print(slot)
+
+    # ========================================================
+    # 17. SERVICE DELETION
     # ========================================================
 
-    print_section("13. SERVICE DELETION")
-
+    print_section("17. SERVICE DELETION")
 
     # service_1 has appointments.
     #
@@ -976,7 +1149,6 @@ try:
         "Prevent deleting service with appointments"
     )
 
-
     # service_2 has NO appointments.
     #
     # This one can be deleted.
@@ -991,13 +1163,11 @@ try:
         "Delete unused service"
     )
 
-
     # ========================================================
-    # 14. SHOP DELETION
+    # 18. SHOP DELETION
     # ========================================================
 
-    print_section("14. SHOP DELETION")
-
+    print_section("18. SHOP DELETION")
 
     response = requests.delete(
         f"{BASE_URL}/shops/{shop_id}"
@@ -1016,7 +1186,6 @@ try:
 
     shop_id = None
 
-
     # ========================================================
     # SUCCESS
     # ========================================================
@@ -1026,7 +1195,6 @@ try:
     print(
         "The complete barber booking flow passed."
     )
-
 
 finally:
 

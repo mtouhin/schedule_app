@@ -1,5 +1,5 @@
 from uuid import UUID
-
+from psycopg.rows import dict_row
 from app.db import get_connection
 from app.schemas import BarberHoursCreate
 from datetime import time
@@ -20,7 +20,7 @@ def set_barber_hours(
     hours: BarberHoursCreate
 ):
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
 
             # ------------------------------------------------
             # 1. Make sure barber exists and get their shop
@@ -41,7 +41,7 @@ def set_barber_hours(
             if not barber:
                 raise ValueError("Barber not found")
 
-            shop_id = barber[0]
+            shop_id = barber["shop_id"]
 
             # ------------------------------------------------
             # 2. If barber is OFF, no times are needed
@@ -130,9 +130,9 @@ def set_barber_hours(
                     "Business hours have not been configured for this day"
                 )
 
-            shop_open = make_time_naive(shop_hours[0])
-            shop_close = make_time_naive(shop_hours[1])
-            shop_closed = shop_hours[2]
+            shop_open = make_time_naive(shop_hours["open_time"])
+            shop_close = make_time_naive(shop_hours["close_time"])
+            shop_closed = shop_hours["is_closed"]
 
             # ------------------------------------------------
             # 6. Shop must actually be open
@@ -220,7 +220,7 @@ def set_barber_hours(
 def get_barber_hours(barber_id: UUID):
 
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
 
             cursor.execute(
                 """

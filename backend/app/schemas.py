@@ -199,3 +199,21 @@ class AppointmentCreate(BaseModel):
             )
 
         return value
+
+class AppointmentUpdate(BaseModel):
+    start_time: Optional[datetime] = None
+    barber_id: Optional[UUID] = None
+    notes: Optional[str] = None
+
+    @field_validator("start_time")
+    @classmethod
+    def validate_start_time(cls, value):
+        if value is not None and value.tzinfo is not None:
+            raise ValueError(
+                "start_time must not include a timezone"
+            )
+
+        return value
+
+class AppointmentStatusUpdate(BaseModel):
+    status: str

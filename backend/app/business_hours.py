@@ -1,5 +1,5 @@
 from uuid import UUID
-
+from psycopg.rows import dict_row
 from app.db import get_connection
 from app.schemas import BusinessHoursCreate
 
@@ -8,7 +8,7 @@ def set_business_hours(
     hours: BusinessHoursCreate
 ):
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+       with conn.cursor(row_factory=dict_row) as cursor:
 
             cursor.execute(
                 """
@@ -84,7 +84,7 @@ def set_business_hours(
 def get_business_hours(shop_id: UUID):
 
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
 
             cursor.execute(
                 """

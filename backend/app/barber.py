@@ -1,11 +1,12 @@
 from uuid import UUID
 from psycopg.errors import UniqueViolation
+from psycopg.rows import dict_row
 from app.db import get_connection
 from app.schemas import BarberCreate
 
 def create_barber(shop_id: UUID, barber: BarberCreate):
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
             try:
                 cursor.execute(
                     """
@@ -38,7 +39,7 @@ def create_barber(shop_id: UUID, barber: BarberCreate):
 
 def get_barbers(shop_id: UUID):
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
                 """
                 SELECT

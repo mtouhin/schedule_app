@@ -2,10 +2,11 @@ from uuid import UUID
 
 from app.db import get_connection
 from app.schemas import ShopCreate
+from psycopg.rows import dict_row
 
 def create_shop(shop: ShopCreate):
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
                 """
                 INSERT INTO shops (
@@ -38,7 +39,7 @@ def create_shop(shop: ShopCreate):
 
 def get_shop(shop_id: UUID):
     with get_connection() as conn:
-        with conn.cursor() as cursor:
+        with conn.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
                 """
                 SELECT
