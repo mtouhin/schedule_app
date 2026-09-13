@@ -1,9 +1,21 @@
 from datetime import datetime, date, time, timedelta
 from uuid import UUID
-
+from typing import Optional
+from psycopg.rows import dict_row
 from app.db import get_connection
 
 SLOT_MINUTES = 15
+
+def make_time_naive(value):
+    if value is None:
+        return None
+
+    return time(
+        value.hour,
+        value.minute,
+        value.second,
+        value.microsecond
+    )
 
 def get_day_of_week(selected_date: date) -> int:
     """
@@ -15,434 +27,401 @@ def get_day_of_week(selected_date: date) -> int:
     """
     return selected_date.weekday()
 
-def get_service_duration(
-    cursor,
-    shop_id: UUID,
-    service_id: UUID
-):
-    cursor.execute(
-        """
-        SELECT duration_minutes
-        FROM services
-        WHERE id = %s
-          AND shop_id = %s
-          AND is_active = TRUE;
-        """,
-        (service_id, shop_id)
-    )
-    result = cursor.fetchone()
-    if not result:
-        raise ValueError("Service not found")
+def get_service_duration(shop_id: UUID, service_id: UUID):
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """
+                SELECT duration_minutes
+                FROM services
+                WHERE id = %s
+                  AND shop_id = %s
+                  AND is_active = TRUE;
+                """,
+                (service_id, shop_id)
+            )
 
-    return result[0]
+            service = cursor.fetchone()
 
-def get_barber_hours(
-    cursor,
-    barber_id: UUID,
-    day_of_week: int
-):
-    cursor.execute(
-        """
-        SELECT
-            start_time,
-            end_time,
-            is_off
-        FROM barber_hours
-        WHERE barber_id = %s
-          AND day_of_week = %s;
-        """,
-        (
-            barber_id,
-            day_of_week
-        )
-    )
-    return cursor.fetchone()
+            if not service:
+                raise ValueError("Service not found")
 
-def get_business_hours(
-    cursor,
-    shop_id: UUID,
-    day_of_week: int
-):
-    cursor.execute(
-        """
-        SELECT
-            open_time,
-            close_time,
-            is_closed
-        FROM business_hours
-        WHERE shop_id = %s
-          AND day_of_week = %s;
-        """,
-        (
-            shop_id,
-            day_of_week
-        )
-    )
-    return cursor.fetchone()
+            return service["duration_minutes"]
 
-def is_shop_closed(
-    cursor,
-    shop_id: UUID,
-    selected_date: date
-):
-    cursor.execute(
-        """
-        SELECT 1
-        FROM shop_closures
-        WHERE shop_id = %s
-          AND closure_date = %s;
-        """,
-        (
-            shop_id,
-            selected_date
-        )
-    )
-    return cursor.fetchone() is not None
+def get_barber_hours(barber_id: UUID, day_of_week: int):
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    start_time,
+                    end_time,
+                    is_off
+                FROM barber_hours
+                WHERE barber_id = %s
+                  AND day_of_week = %s;
+                """,
+                (barber_id, day_of_week)
+            )
+
+            return cursor.fetchone()
+
+def get_business_hours(shop_id: UUID, day_of_week: int):
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    open_time,
+                    close_time,
+                    is_closed
+                FROM business_hours
+                WHERE shop_id = %s
+                  AND day_of_week = %s;
+                """,
+                (shop_id, day_of_week)
+            )
+
+            return cursor.fetchone()
+
+def get_shop_exception(shop_id: UUID, selected_date: date):
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    id,
+                    closure_date,
+                    start_time,
+                    end_time,
+                    reason,
+                    closure_type
+                FROM shop_closures
+                WHERE shop_id = %s
+                  AND closure_date = %s;
+                """,
+                (shop_id, selected_date)
+            )
+
+            return cursor.fetchone()
 
 def get_barber_appointments(
-    cursor,
     barber_id: UUID,
     selected_date: date
 ):
-    """
-    Get all appointments for this barber on this date.
-    """
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    start_time,
+                    end_time
+                FROM appointments
+                WHERE barber_id = %s
+                  AND DATE(start_time) = %s
+                  AND status NOT IN ('CANCELLED', 'NO_SHOW')
+                ORDER BY start_time;
+                """,
+                (barber_id, selected_date)
+            )
 
-    start_of_day = datetime.combine(
-        selected_date,
-        time.min
-    )
+            return cursor.fetchall()
 
-    end_of_day = start_of_day + timedelta(days=1)
+def get_active_barbers(shop_id: UUID):
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    id,
+                    name
+                FROM barbers
+                WHERE shop_id = %s
+                  AND is_active = TRUE
+                ORDER BY name;
+                """,
+                (shop_id,)
+            )
 
-    cursor.execute(
-        """
-        SELECT
-            start_time,
-            end_time
-        FROM appointments
-        WHERE barber_id = %s
-          AND start_time < %s
-          AND end_time > %s
-          AND status NOT IN (
-              'CANCELLED',
-              'NO_SHOW'
-          )
-        ORDER BY start_time;
-        """,
-        (
-            barber_id,
-            end_of_day,
-            start_of_day
-        )
-    )
-
-    return cursor.fetchall()
+            return cursor.fetchall()
 
 def overlaps(
     start_time: datetime,
     end_time: datetime,
-    existing_start: datetime,
-    existing_end: datetime
+    appointments
 ):
-    """
-    Returns True if two appointments overlap.
-    """
+    for appointment in appointments:
+        existing_start = appointment["start_time"]
+        existing_end = appointment["end_time"]
 
-    return (
-        start_time < existing_end
-        and
-        end_time > existing_start
-    )
+        if start_time < existing_end and end_time > existing_start:
+            return True
+
+    return False
+
 
 def generate_slots(
     start_time: time,
     end_time: time,
     duration_minutes: int
 ):
-    """
-    Generate possible 15-minute appointment start times.
-
-    Example:
-
-    8:00 AM - 10:00 AM
-    30-minute service
-
-    Returns:
-
-    8:00
-    8:15
-    8:30
-    8:45
-    ...
-    9:30
-
-    9:45 is excluded because the 30-minute
-    service would run past 10:00.
-    """
-
-    current = datetime.combine(
-        date.today(),
-        start_time
-    )
-
-    closing = datetime.combine(
-        date.today(),
-        end_time
-    )
-
-    duration = timedelta(
-        minutes=duration_minutes
-    )
-
     slots = []
 
-    while current + duration <= closing:
+    current = datetime.combine(date.today(), start_time)
+    closing = datetime.combine(date.today(), end_time)
+
+    while current + timedelta(minutes=duration_minutes) <= closing:
         slots.append(current.time())
 
-        current += timedelta(
-            minutes=SLOT_MINUTES
-        )
+        current += timedelta(minutes=15)
+
     return slots
 
 def get_available_times(
     shop_id: UUID,
     service_id: UUID,
     selected_date: date,
-    barber_id: UUID | None = None
+    barber_id: Optional[UUID] = None
 ):
-    """
-    Return available appointment times.
-
-    If barber_id is provided:
-        Find times that barber is available.
-
-    If barber_id is None:
-        Find times where at least one barber
-        is available.
-    """
-
     day_of_week = get_day_of_week(selected_date)
 
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
+    # ---------------------------------------------------------
+    # 1. Verify service
+    # ---------------------------------------------------------
 
-            # --------------------------------
-            # Check shop closure
-            # --------------------------------
-            
-            if is_shop_closed(
-                cursor,
-                shop_id,
-                selected_date
-            ):
-                return []
+    duration_minutes = get_service_duration(
+        shop_id,
+        service_id
+    )
 
-            # --------------------------------
-            # Get business hours
-            # --------------------------------
+    # ---------------------------------------------------------
+    # 2. Get normal business hours
+    # ---------------------------------------------------------
 
-            business_hours = get_business_hours(
-                cursor,
-                shop_id,
-                day_of_week
-            )
+    business_hours = get_business_hours(
+        shop_id,
+        day_of_week
+    )
 
-            if not business_hours:
-                return []
+    if not business_hours:
+        return []
 
-            shop_open = business_hours[0]
-            shop_close = business_hours[1]
-            shop_closed = business_hours[2]
+    if business_hours["is_closed"]:
+        return []
 
-            if shop_closed:
-                return []
+    shop_open = make_time_naive(
+        business_hours["open_time"]
+    )
 
-            if shop_open is None or shop_close is None:
-                return []
+    shop_close = make_time_naive(
+        business_hours["close_time"]
+    )
 
-            # --------------------------------
-            # Get service duration
-            # --------------------------------
+    if shop_open is None or shop_close is None:
+        return []
 
-            duration_minutes = get_service_duration(
-                cursor,
-                shop_id,
-                service_id
-            )
+    # ---------------------------------------------------------
+    # 3. Check for a date-specific shop exception
+    # ---------------------------------------------------------
 
-            # --------------------------------
-            # Determine barbers
-            # --------------------------------
+    shop_exception = get_shop_exception(
+        shop_id,
+        selected_date
+    )
 
-            if barber_id:
+    if shop_exception:
+
+        exception_start = make_time_naive(
+            shop_exception["start_time"]
+        )
+
+        exception_end = make_time_naive(
+            shop_exception["end_time"]
+        )
+
+        # Both NULL = completely closed
+        if exception_start is None and exception_end is None:
+            return []
+
+        # One NULL but not the other = invalid data
+        if exception_start is None or exception_end is None:
+            return []
+
+        # Special hours override normal business hours
+        shop_open = exception_start
+        shop_close = exception_end
+
+    # ---------------------------------------------------------
+    # 4. Determine which barbers to check
+    # ---------------------------------------------------------
+
+    if barber_id is not None:
+
+        with get_connection() as conn:
+            with conn.cursor(row_factory=dict_row) as cursor:
                 cursor.execute(
                     """
-                    SELECT id
+                    SELECT
+                        id,
+                        shop_id,
+                        is_active
                     FROM barbers
                     WHERE id = %s
-                      AND shop_id = %s
-                      AND is_active = TRUE;
+                      AND shop_id = %s;
                     """,
-                    (
-                        barber_id,
-                        shop_id
-                    )
+                    (barber_id, shop_id)
                 )
 
                 barber = cursor.fetchone()
-                if not barber:
-                    raise ValueError(
-                        "Barber not found"
-                    )
-                barber_ids = [barber[0]]
 
-            else:
-                cursor.execute(
-                    """
-                    SELECT id
-                    FROM barbers
-                    WHERE shop_id = %s
-                      AND is_active = TRUE
-                    ORDER BY name;
-                    """,
-                    (shop_id,)
-                )
+        if not barber:
+            raise ValueError("Barber not found")
 
-                barber_ids = [
-                    row[0]
-                    for row in cursor.fetchall()
-                ]
+        if not barber["is_active"]:
+            return []
 
-            # --------------------------------
-            # Generate slots for each barber
-            # --------------------------------
+        barbers = [barber]
 
-            available_by_barber = {}
-            for current_barber_id in barber_ids:
-                hours = get_barber_hours(
-                    cursor,
-                    current_barber_id,
-                    day_of_week
-                )
+    else:
+        barbers = get_active_barbers(shop_id)
 
-                if not hours:
-                    continue
+    # No active barbers
+    if not barbers:
+        return []
 
-                barber_start = hours[0]
-                barber_end = hours[1]
-                barber_off = hours[2]
+    # ---------------------------------------------------------
+    # 5. Find available slots for each barber
+    # ---------------------------------------------------------
 
-                if barber_off:
-                    continue
+    results = []
 
-                if barber_start is None or barber_end is None:
-                    continue
+    for barber in barbers:
 
-                # Barber cannot work outside
-                # shop hours.
+        barber_hours = get_barber_hours(
+            barber["id"],
+            day_of_week
+        )
 
-                effective_start = max(
-                    barber_start,
-                    shop_open
-                )
+        if not barber_hours:
+            continue
 
-                effective_end = min(
-                    barber_end,
-                    shop_close
-                )
+        if barber_hours["is_off"]:
+            continue
 
-                if effective_start >= effective_end:
-                    continue
+        barber_start = make_time_naive(
+            barber_hours["start_time"]
+        )
 
-                possible_slots = generate_slots(
-                    effective_start,
-                    effective_end,
-                    duration_minutes
-                )
+        barber_end = make_time_naive(
+            barber_hours["end_time"]
+        )
 
-                appointments = get_barber_appointments(
-                    cursor,
-                    current_barber_id,
-                    selected_date
-                )
+        if barber_start is None or barber_end is None:
+            continue
 
-                available_slots = []
-                for slot in possible_slots:
-                    appointment_start = datetime.combine(
-                        selected_date,
-                        slot
-                    )
+        # -----------------------------------------------------
+        # Barber must operate inside shop hours
+        # -----------------------------------------------------
 
-                    appointment_end = (
-                        appointment_start
-                        +
-                        timedelta(
-                            minutes=duration_minutes
-                        )
-                    )
+        effective_start = max(
+            shop_open,
+            barber_start
+        )
 
-                    conflict = False
+        effective_end = min(
+            shop_close,
+            barber_end
+        )
 
-                    for existing in appointments:
+        if effective_start >= effective_end:
+            continue
 
-                        existing_start = existing[0]
-                        existing_end = existing[1]
+        # -----------------------------------------------------
+        # Generate 15-minute slots
+        # -----------------------------------------------------
 
-                        if overlaps(
-                            appointment_start,
-                            appointment_end,
-                            existing_start,
-                            existing_end
-                        ):
-                            conflict = True
-                            break
+        slots = generate_slots(
+            effective_start,
+            effective_end,
+            duration_minutes
+        )
 
-                    if not conflict:
-                        available_slots.append(
-                            slot
-                        )
+        # -----------------------------------------------------
+        # Existing appointments
+        # -----------------------------------------------------
 
-                available_by_barber[
-                    current_barber_id
-                ] = available_slots
+        appointments = get_barber_appointments(
+            barber["id"],
+            selected_date
+        )
 
-            # --------------------------------
+        for slot in slots:
+
+            slot_start = datetime.combine(
+                selected_date,
+                slot
+            )
+
+            slot_end = slot_start + timedelta(
+                minutes=duration_minutes
+            )
+
+            # Skip occupied slots
+            if overlaps(
+                slot_start,
+                slot_end,
+                appointments
+            ):
+                continue
+
+            # -------------------------------------------------
             # Specific barber
-            # --------------------------------
+            # -------------------------------------------------
 
-            if barber_id:
+            if barber_id is not None:
 
-                return [
+                results.append(
                     {
                         "time": slot,
-                        "barber_id": barber_id
+                        "barber_id": barber["id"]
                     }
-                    for slot in available_by_barber.get(
-                        barber_id,
-                        []
-                    )
-                ]
-
-            # --------------------------------
-            # Anyone available
-            # --------------------------------
-
-            combined = {}
-            for current_barber_id, slots in available_by_barber.items():
-                for slot in slots:
-                    if slot not in combined:
-                        combined[slot] = []
-                    combined[slot].append(
-                        current_barber_id
-                    )
-
-            return [
-                {
-                    "time": slot,
-                    "barber_ids": barber_ids
-                }
-                for slot, barber_ids in sorted(
-                    combined.items()
                 )
-            ]
+
+            # -------------------------------------------------
+            # Anyone available
+            # -------------------------------------------------
+
+            else:
+
+                existing_result = next(
+                    (
+                        result
+                        for result in results
+                        if result["time"] == slot
+                    ),
+                    None
+                )
+
+                if existing_result:
+                    existing_result["barber_ids"].append(
+                        barber["id"]
+                    )
+                else:
+                    results.append(
+                        {
+                            "time": slot,
+                            "barber_ids": [
+                                barber["id"]
+                            ]
+                        }
+                    )
+
+    # ---------------------------------------------------------
+    # Sort slots chronologically
+    # ---------------------------------------------------------
+
+    results.sort(
+        key=lambda result: result["time"]
+    )
+
+    return results
