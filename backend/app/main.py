@@ -330,6 +330,12 @@ def set_barber_hours_endpoint(
             status_code=400,
             detail=str(e)
         )
+    
+    except Exception as e:
+        print("=======================================")
+        print("Error in set barber hours: \n", repr(e))
+        print("=======================================")
+        raise
 
 @app.post("/shops/{shop_id}/services")
 def create_service_endpoint(

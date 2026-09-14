@@ -30,6 +30,15 @@ class ShopCreate(BaseModel):
     address: Optional[str] = None
     timezone: str = "America/Chicago"
     
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value):
+        value = value.strip()
+        
+        if not value:
+            raise ValueError("Shop name cannot be empty")
+        return value
+    
     @field_validator("address")
     @classmethod
     def validate_address(cls, value):
@@ -138,12 +147,52 @@ class ServiceCreate(BaseModel):
     description: Optional[str] = None
     duration_minutes: int
     price_cents: int
+    
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value):
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Service name cannot be empty")
+
+        return value
+
+    @field_validator("duration_minutes")
+    @classmethod
+    def validate_duration(cls, value):
+        if value <= 15:
+            raise ValueError(
+                "Duration must be greater than 15 minutes"
+            )
+
+        return value
+
+    @field_validator("price_cents")
+    @classmethod
+    def validate_price(cls, value):
+        if value < 0:
+            raise ValueError(
+                "Price cannot be negative"
+            )
+
+        return value
 
 class BusinessHoursCreate(BaseModel):
     day_of_week: int
     open_time: Optional[time] = None
     close_time: Optional[time] = None
     is_closed: bool = False
+
+    @field_validator("day_of_week")
+    @classmethod
+    def validate_day_of_week(cls, value):
+        if value < 0 or value > 6:
+            raise ValueError(
+                "day_of_week must be between 0 and 6"
+            )
+
+        return value
 
     @field_validator("open_time", "close_time", mode="before")
     @classmethod
@@ -172,6 +221,28 @@ class BusinessHoursCreate(BaseModel):
             )
 
         return value
+    
+    @model_validator(mode="after")
+    def validate_hours(self):
+        if self.is_closed:
+            if self.open_time is not None or self.close_time is not None:
+                raise ValueError(
+                    "Closed days cannot have open or close times"
+                )
+
+            return self
+
+        if self.open_time is None or self.close_time is None:
+            raise ValueError(
+                "Open and close times are required when business is open"
+            )
+
+        if self.close_time <= self.open_time:
+            raise ValueError(
+                "Close time must be after open time"
+            )
+
+        return self
 
 class BarberHoursCreate(BaseModel):
     day_of_week: int
@@ -206,6 +277,28 @@ class BarberHoursCreate(BaseModel):
             )
 
         return value
+    
+    @model_validator(mode="after")
+    def validate_hours(self):
+        if self.is_off:
+            if self.start_time is not None or self.end_time is not None:
+                raise ValueError(
+                    "Off days cannot have start or end times"
+                )
+
+            return self
+
+        if self.start_time is None or self.end_time is None:
+            raise ValueError(
+                "Start and end times are required when barber is working"
+            )
+
+        if self.end_time <= self.start_time:
+            raise ValueError(
+                "End time must be after start time"
+            )
+
+        return self
     
 class CustomerCreate(BaseModel):
     name: str

@@ -101,7 +101,7 @@ def test_reject_close_before_open(
 
     check(
         response,
-        400,
+        422,
         "Reject close before open",
     )
 
@@ -122,7 +122,7 @@ def test_reject_missing_hours_when_open(
 
     check(
         response,
-        400,
+        422,
         "Reject missing hours when shop is open",
     )
 
