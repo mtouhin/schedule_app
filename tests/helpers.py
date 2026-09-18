@@ -166,6 +166,17 @@ def set_barber_hours(session, barber_1_id, barber_2_id):
 
     check(response, 200, "Set John's Tuesday hours")
 
+    # John is OFF Wednesday
+    response = session.put(
+        f"{BASE_URL}/barbers/{barber_1_id}/hours",
+        json={
+            "day_of_week": 2,
+            "is_off": True,
+        },
+    )
+
+    check(response, 200, "Set John's Wednesday off day")
+
     # Mike works Tuesday 10 AM - 6 PM
     response = session.put(
         f"{BASE_URL}/barbers/{barber_2_id}/hours",
@@ -217,7 +228,7 @@ def set_barber_hours(session, barber_1_id, barber_2_id):
         },
     )
 
-    check(response, 200, "Set John's Friday hours")
+    check(response, 200, "Set John's Friday off day")
 
     # Mike works Friday 10 AM - 6 PM.
     response = session.put(
