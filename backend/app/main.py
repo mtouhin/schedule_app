@@ -39,9 +39,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-#@app.on_event("startup")
-#def startup():
-    #initialize_database()
+@app.on_event("startup")
+def startup():
+    initialize_database()
 
 @app.get("/health")
 def health_check():

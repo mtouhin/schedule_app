@@ -2,6 +2,7 @@ from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
 from datetime import datetime, date, time
 from uuid import UUID
+from enum import Enum
 from typing import Optional
 
 def parse_time(value):
@@ -372,3 +373,43 @@ class AppointmentUpdate(BaseModel):
 
 class AppointmentStatusUpdate(BaseModel):
     status: str
+
+
+class NotificationType(str, Enum):
+    CONFIRMATION = "confirmation"
+    RESCHEDULED = "rescheduled"
+    CANCELLED = "cancelled"
+    REMINDER = "reminder"
+
+
+class NotificationChannel(str, Enum):
+    SMS = "sms"
+    EMAIL = "email"
+
+
+class NotificationRecipientType(str, Enum):
+    CUSTOMER = "customer"
+    BARBER = "barber"
+    SHOP = "shop"
+
+
+class NotificationStatus(str, Enum):
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"
+    
+class NotificationResponse(BaseModel):
+    id: UUID
+    appointment_id: UUID
+    type: NotificationType
+    channel: NotificationChannel
+    recipient_type: NotificationRecipientType
+    recipient_id: Optional[UUID] = None
+    recipient: str
+    message: str
+    status: NotificationStatus
+    scheduled_for: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
+    failed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    created_at: datetime

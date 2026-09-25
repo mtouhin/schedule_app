@@ -13,6 +13,82 @@ from app.schemas import (
 )
 from app.scheduler import get_available_times
 
+from app.notifications import (create_notification, 
+                               notify_appointment_cancelled, 
+                               notify_appointment_rescheduled, 
+                               notify_appointment_created)
+
+def get_customer(cursor, customer_id: UUID, shop_id: UUID):
+    cursor.execute(
+        """
+        SELECT
+            id,
+            name,
+            phone
+        FROM customers
+        WHERE id = %s
+          AND shop_id = %s;
+        """,
+        (
+            customer_id,
+            shop_id
+        )
+    )
+
+    customer = cursor.fetchone()
+
+    if not customer:
+        raise ValueError("Customer not found")
+
+    return customer
+
+def get_barber(cursor, barber_id: UUID, shop_id: UUID):
+    cursor.execute(
+        """
+        SELECT
+            id,
+            name,
+            phone
+        FROM barbers
+        WHERE id = %s
+          AND shop_id = %s;
+        """,
+        (
+            barber_id,
+            shop_id
+        )
+    )
+
+    barber = cursor.fetchone()
+
+    if not barber:
+        raise ValueError("Barber not found")
+
+    return barber
+
+def get_service(cursor, service_id: UUID, shop_id: UUID):
+    cursor.execute(
+        """
+        SELECT
+            id,
+            name,
+            duration_minutes
+        FROM services
+        WHERE id = %s
+          AND shop_id = %s;
+        """,
+        (
+            service_id,
+            shop_id
+        )
+    )
+
+    service = cursor.fetchone()
+
+    if not service:
+        raise ValueError("Service not found")
+
+    return service
 
 # ============================================================
 # CREATE APPOINTMENT
@@ -27,7 +103,7 @@ def create_appointment(
 
             cursor.execute(
                 """
-                SELECT duration_minutes
+                SELECT id, name, duration_minutes
                 FROM services
                 WHERE id = %s
                   AND shop_id = %s
@@ -52,7 +128,7 @@ def create_appointment(
 
             cursor.execute(
                 """
-                SELECT id
+                SELECT id, name, phone
                 FROM customers
                 WHERE id = %s
                   AND shop_id = %s;
@@ -82,7 +158,7 @@ def create_appointment(
 
                 cursor.execute(
                     """
-                    SELECT id
+                    SELECT id, name, phone
                     FROM barbers
                     WHERE id = %s
                       AND shop_id = %s
@@ -182,14 +258,7 @@ def create_appointment(
                         notes
                     )
                     VALUES (
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        %s,
-                        'BOOKED',
-                        %s
+                        %s, %s, %s, %s, %s, %s, 'BOOKED', %s
                     )
                     RETURNING
                         id,
@@ -218,7 +287,20 @@ def create_appointment(
 
                 result = cursor.fetchone()
 
+                customer = get_customer(cursor, appointment.customer_id, shop_id)
+
+                barber = get_barber(cursor, selected_barber_id, shop_id)
+
+                service = get_service( cursor,
+                                   appointment.service_id,
+                                   shop_id
+                                )
                 conn.commit()
+                
+                notify_appointment_created(appointment=result, 
+                                           customer=customer, 
+                                           barber=barber,
+                                           service=service)
 
                 return result
 
@@ -714,8 +796,15 @@ def update_appointment(
                 )
 
                 result = cursor.fetchone()
-
+                customer = get_customer(cursor, customer_id, shop_id)
+                barber = get_barber(cursor, new_barber_id, shop_id)
+                service = get_service( cursor, service_id, shop_id)
                 conn.commit()
+
+                notify_appointment_rescheduled(appointment=result, 
+                                               customer=customer, 
+                                               barber=barber,
+                                               service=service)
 
                 return result
 
@@ -760,7 +849,7 @@ def update_appointment_status(
 
             cursor.execute(
                 """
-                SELECT id
+                SELECT id, customer_id, barber_id, service_id
                 FROM appointments
                 WHERE id = %s
                   AND shop_id = %s;
@@ -811,6 +900,24 @@ def update_appointment_status(
 
             result = cursor.fetchone()
 
+            customer = get_customer(cursor, appointment["customer_id"], shop_id)
+
+            barber = get_barber(cursor, appointment["barber_id"], shop_id)
+
+            service = get_service( cursor,
+                                   appointment["service_id"],
+                                   shop_id
+                                )
+
+            if not service:
+                raise ValueError("Service not found")
+
             conn.commit()
+
+            if update.status == "CANCELLED":
+                notify_appointment_cancelled(appointment=result, 
+                                             customer=customer, 
+                                             barber=barber,
+                                             service=service)
 
             return result
